@@ -1,0 +1,213 @@
+<html lang="ja">
+<meta charset="UTF-8">
+<style> 
+  html, body{
+    overflow: hidden;
+    user-select: none;
+  }
+  
+  #joystick-container { 
+    width: min(80vw,80vh); 
+    height: min(80vw,80vh); 
+    max-width: 500px;
+    max-height: 500px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    background: #ccc; 
+    border-radius: 50%; 
+    position: relative; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    pointer-events: none;
+  } 
+  
+  #joystick { 
+    width: 40%; 
+    height: 40%; 
+    background: #a6a6a6; 
+    border-radius: 50%; 
+    position: absolute; 
+  } 
+  #indicator { 
+    padding: 5px;
+    top: -20%;
+    border-radius: 8px;
+    font-size: 30px;
+    background: #aaadbc; 
+    position: absolute;
+    display: none;
+  } 
+  /* .JOYS{
+    display: none !important;
+  } */
+   .Ccon{
+    display: flex;
+    flex-direction: column;
+    position: absolute; 
+  }
+  .CInd{
+    display: none;
+    font-size: 10px;
+  }
+</style>
+
+<div class="Ccon">
+    <button id="connectButton">ConnectToESP32</button>
+    <div class="CInd" id="CM1">conecting...</div>
+    <div class="CInd" id="CM2">gettingService...</div>
+    <div class="CInd" id="CM3">gettingChar...</div>
+</div>
+<div class="JOYS" id="joystick-container"> 
+  <div class="JOYS" id="indicator"></div>
+  <div class="JOYS" id="joystick"></div> 
+</div>
+
+<script> 
+  const joystick = document.getElementById("joystick"); 
+  const container = document.getElementById("joystick-container"); 
+  const indicator = document.getElementById("indicator"); 
+  const connectButton = document.getElementById("connectButton");
+  const CM = document.getElementsByClassName("CInd");
+  
+  let centerX = container.offsetWidth / 2; 
+  let centerY = container.offsetHeight / 2; 
+  let isDragging = false; 
+
+  let M_per = 0;
+  let M_deg = 0;
+  
+  const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+  const WRITE_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+  let TX;
+  let sendData = 0;
+
+  window.addEventListener("resize", (e) => { 
+    centerX = container.offsetWidth / 2; 
+    centerY = container.offsetHeight / 2;
+  }); 
+  connectButton.addEventListener("click", async () => {
+    let idx = 0;
+    CM[0].textContent = "conecting...";
+    CM[0].style.background = ""
+    CM[1].textContent = "gettingService...";
+    CM[1].style.background = ""
+    CM[2].style.background = ""
+    try{
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name:'koko' }],
+          optionalServices: [SERVICE_UUID]
+        });
+        CM[idx].style.display = "block";
+        const server = await device.gatt.connect();
+        console.log("server info:", server);
+        CM[idx].textContent = "COMPLETE!"; 
+        CM[idx].style.color = "#00c72b";
+        CM[++idx].style.display = "block";
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        console.log("Available services:", service);
+        CM[idx].textContent = "COMPLETE!"; 
+        CM[idx].style.color = "#00c72b";
+        CM[++idx].style.display = "block";                                                                                   
+            TX = await service.getCharacteristic(WRITE_UUID);
+            console.log("TX:", TX);
+        CM[idx].textContent = "COMPLETE!"; 
+        CM[idx].style.color = "#00c72b";
+        
+        await StartSending();
+
+        setTimeout(()=>{
+            connectButton.style.display = "none";
+            CM[0].textContent = "Connected to ESP32."
+            CM[1].style.display = "none";
+            CM[2].style.display = "none";
+            joystick.style.background= "#626262";
+            container.style.pointerEvents= "auto";
+        }, 500);
+
+        device.addEventListener("gattserverdisconnected", ()=>{
+            CM[0].style.color = "#970000";
+            CM[0].textContent = "disconnected...";
+            setTimeout(()=>{
+                connectButton.style.display = "block";
+                CM[0].style.display = "none";
+                joystick.style.background= "#a6a6a6";
+                container.style.pointerEvents= "none";
+            }, 1000);
+        });
+    }
+    catch(err){
+        CM[idx].textContent = "FAILED."; CM[idx].style.background = "#970000";
+        console.error("Error:",err);
+    }
+  });
+  container.addEventListener("pointerdown", (e) => { 
+    isDragging = true; 
+    moveJoystick(e); 
+  }); 
+  
+  document.addEventListener("pointermove", (e) => { 
+    if (isDragging) moveJoystick(e); 
+  }); 
+  
+  document.addEventListener("pointerup", () => { 
+    isDragging = false;
+    indicator.style.display = "none";
+    joystick.style.transform = `translate(0, 0)`; 
+    sendZero();
+  }); 
+  
+
+  function moveJoystick(e) { 
+    const rect = container.getBoundingClientRect(); 
+    let x = e.clientX - rect.left - centerX; 
+    let y = e.clientY - rect.top - centerY; 
+    let angle = Math.atan2(x, y);
+    let distance = Math.sqrt(x * x + y * y); 
+    const maxDistance = rect.width*0.3; // 移動範囲の制限 
+    
+    if (distance > maxDistance) { 
+      x = Math.sin(angle) * maxDistance; 
+      y = Math.cos(angle) * maxDistance; 
+      distance = maxDistance
+    } 
+    
+    M_per = (distance/150*100).toFixed(0);
+    M_deg = (180 -angle *(180/Math.PI)).toFixed(0);
+
+    indicator.innerText = `${M_per}% ${M_deg}°`;
+    indicator.style.display = "block"
+    indicator.style.transform = `translatex(${x}px)`; 
+    joystick.style.transform = `translate(${x}px, ${y}px)`; 
+
+    // for message
+    M_deg = (M_deg/3).toFixed(0);
+    CM[1].style.color = "#1d1e23";
+    sendData = new Uint8Array([M_per&0xFF, M_deg&0xFF]);
+  } 
+  async function StartSending(){
+    if(isDragging && sendData){
+        CM[1].textContent = `${sendData}`;
+        CM[1].style.display = "block";
+        setTimeout(()=>{
+            CM[1].style.display = "none";
+        }, 250);
+        try{
+            await TX.writeValueWithoutResponse(sendData);
+            console.log("TX:", TX);
+        } catch(err){
+            console.error("Error:",err);
+        }
+    }
+    setTimeout(StartSending,30);
+  }
+  async function sendZero(){
+    try{
+      await TX.writeValueWithoutResponse(new Uint8Array([0x00, 0x00]));
+    } catch(err){
+        console.error("Error:",err);
+    }
+  }
+</script>
+</html>
