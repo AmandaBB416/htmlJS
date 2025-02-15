@@ -5,6 +5,9 @@
   html, body{
     overflow: hidden;
     user-select: none;
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
   }
   
   #joystick-container { 
@@ -12,9 +15,7 @@
     height: min(80vw,80vh); 
     max-width: 500px;
     max-height: 500px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%,　-50%);
+    margin: 0 auto;
     background: #ccc; 
     border-radius: 50%; 
     position: absolute; 
