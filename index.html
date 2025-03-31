@@ -203,7 +203,7 @@ function logMessage(message) {
         }, 250);
         try{
             await TX.writeValueWithoutResponse(sendData);
-            console.log("TX:", TX);
+            logMessage(TX);
         } catch(err){
             logMessage(err);
         }
