@@ -161,6 +161,10 @@
     sendZero();
   }); 
   
+function logMessage(message) {
+    const logArea = document.getElementById("log");
+    logArea.innerHTML += message + "<br>";
+}
 
   function moveJoystick(e) { 
     const rect = container.getBoundingClientRect(); 
@@ -200,7 +204,7 @@
             await TX.writeValueWithoutResponse(sendData);
             console.log("TX:", TX);
         } catch(err){
-            console.error("Error:",err);
+            logMessage("Error:",err);
         }
     }
     setTimeout(StartSending,30);
