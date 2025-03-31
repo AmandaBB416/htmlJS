@@ -164,7 +164,7 @@
   
 function logMessage(message) {
     const logArea = document.getElementById("log");
-    logArea.innerHTML += message + "<br>";
+    logArea.innerText = `${message}`;
 }
 
   function moveJoystick(e) { 
