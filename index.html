@@ -205,7 +205,7 @@ function logMessage(message) {
             await TX.writeValueWithoutResponse(sendData);
             console.log("TX:", TX);
         } catch(err){
-            logMessage("Error:",err);
+            logMessage(err);
         }
     }
     setTimeout(StartSending,30);
