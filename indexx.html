@@ -183,7 +183,7 @@ function logMessage(message) {
     let y = e.clientY - rect.top - centerY; 
     let angle = Math.atan2(x, y);
     let distance = Math.sqrt(x * x + y * y); 
-    const maxDistance = rect.width*0.3; // 移動範囲の制限 
+    const maxDistance = rect.width*0.3; 
     
     if (distance > maxDistance) { 
       x = Math.sin(angle) * maxDistance; 
