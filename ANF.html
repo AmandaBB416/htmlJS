@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    #circle-container {
+      position: relative;
+      width: min(80vw,80vh); 
+      height: min(80vw,80vh); 
+      border: 1px solid #ccc;
+      border-radius: 50%;
+      margin: 50px auto;
+    }
+    #circle-2 {
+      position: absolute;
+      width: 80%;
+      height: 80%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px solid #ccc;
+      border-radius: 50%;
+    }
+    #circle-3 {
+      position: absolute;
+      width: 60%;
+      height: 60%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px solid #ccc;
+      border-radius: 50%;
+    }
+    #circle-4 {
+      position: absolute;
+      width: 40%;
+      height: 40%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px solid #ccc;
+      border-radius: 50%;
+    }
+    #output {
+      position: absolute;
+    }
+
+    .point {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      background-color: #767676;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+    .tick {
+        position: absolute;
+        width: 1px;
+        height: 200px;
+        background-color: #ccc;
+        top: 0;
+        left: 50%;
+        transform-origin: bottom center;
+        }
+  </style>
+</head>
+<body>
+
+<div id="counter"></div>
+<div id="output"></div>
+<div id="circle-container">
+    <div id="circle-2"></div>
+    <div id="circle-3"></div>
+    <div id="circle-4"></div>
+</div>
+
+<script>
+  const out =document.getElementById("output");
+  const counter =document.getElementById("counter");
+  const container = document.getElementById('circle-container');
+  let centerX = container.offsetWidth / 2;
+  let centerY = container.offsetHeight / 2; 
+  let radius = container.offsetWidth /2 ;
+
+  let cnt =0;
+  let data ="Per,deg\n";
+
+  window.addEventListener("resize", (e) => { 
+    centerX = container.offsetWidth / 2; 
+    centerY = container.offsetHeight / 2;
+    radius = container.offsetWidth /2 ;
+  }); 
+  out.textContent = data;
+  counter.textContent =`${cnt}/100\n`;
+  for(let p=0; p<6;p++){
+    if(p==0){
+        const point = document.createElement('div');
+        point.className = 'point';
+        point.style.left = `${centerX}px`;
+        point.style.top = `${centerY}px`;
+        point.title = `0% -°`;
+
+        point.addEventListener('click', () => {
+            writeD(`0%,-\n`);
+        });
+        container.appendChild(point);
+        continue;
+    }
+    for (let i = 0; i < 24; i++) {
+        const angle = (180- (i * 15)) * (Math.PI / 180);
+        const x = centerX + radius * Math.sin(angle)*((p*20)/100);
+        const y = centerY + radius * Math.cos(angle)*((p*20)/100);
+
+        const point = document.createElement('div');
+        point.className = 'point';
+        point.style.left = `${x}px`;
+        point.style.top = `${y}px`;
+        point.title = `${p*20}% ${i * 15}°`;
+        point.style.width =`${p*15}px`;
+        point.style.height =`${p*15}px`;
+
+        point.addEventListener('click', () => {
+            writeD(`${p*20}%,${i*15}°\n`);
+        });
+        container.appendChild(point);
+    }
+  }
+
+  function writeD(addd){
+    data += addd;
+    out.textContent = data;
+    counter.textContent =`${++cnt}/100\n`;
+    if (cnt >= 100) {
+        console.log(data);
+        saveCSV(data);
+        document.querySelectorAll(".point").forEach(p => p.style.display = "none");
+    }
+}
+  function saveCSV(data, filename = 'data.csv') {
+    const blob = new Blob([data], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+</script>
+
+</body>
+</html>
