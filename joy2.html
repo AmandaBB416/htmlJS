@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ja">
+<meta name="viewport" content="width=device-width, initial-scale=1"charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style> 
+  html, body{
+    overflow: hidden;
+    user-select: none;
+    height: 100%;
+    margin: 0;
+  }
+  
+  #joystick-container { 
+    width: min(80vw,80vh); 
+    height: min(80vw,80vh); 
+    max-width: 900px;
+    max-height: 900px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    border-radius: 50%; 
+    position: relative; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    pointer-events: none;
+  } 
+  
+  #joystick { 
+    width: 40%; 
+    height: 40%; 
+    background: #a6a6a6; 
+    border-radius: 50%; 
+    position: absolute; 
+  } 
+  #EXp { 
+    width: 5%; 
+    height: 5%; 
+    display: none;
+    background: #ff0000; 
+    border-radius: 50%; 
+    position: absolute; 
+  } 
+  #EXp2 { 
+    width: 5%; 
+    height: 5%; 
+    display: none;
+    background: #009dff; 
+    border-radius: 50%; 
+    position: absolute; 
+  } 
+  #centerDot{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;    
+  height: 10px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(0,0,0,0.35);  
+  pointer-events: none;                      
+  }
+  #indicator { 
+    padding: 5px;
+    top: -10%;
+    border-radius: 8px;
+    font-size: 30px;
+    background: #aaadbc; 
+    position: absolute;
+    display: none;
+  } 
+  /* .JOYS{
+    display: none !important;
+  } */
+   .Ccon{
+    display: flex;
+    flex-direction: column;
+    position: absolute; 
+  }
+  .CInd{
+    display: none;
+    font-size: 10px;
+  }
+  .CEX{
+    display: none;
+    font-size: 24px;
+  }
+  #log { 
+    padding: 5px;
+    top: 10%;
+    border-radius: 8px;
+    font-size: 25px;
+    position: absolute;
+    display: none;
+  }
+  .tick {
+    position: absolute;
+    width: 1px;
+    height: 200px;
+    background-color: #ccc;
+    top: 0;
+    left: 50%;
+    transform-origin:  50% 100%;
+  }
+  .ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border: 1px solid #ccc;
+    border-radius: 50%;
+  }
+  #ring {
+    display: none;
+  }
+  #EXchoice{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: none;
+  transform-origin: 50% 50%;
+  z-index: 10;
+  }
+  #EXchoice button{
+    font-size: 28px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #555;
+    background: #eee;
+  }
+</style>
+
+<div class="Ccon">
+    <button id="connectButton">ConnectToESP32</button>
+    <div class="CInd" id="CM1">conecting...</div>
+    <div class="CInd" id="CM2">gettingService...</div>
+    <div class="CInd" id="CM3">gettingChar...</div>
+    <input id="fileNameInput" placeholder="filename" style="font-size:16px; padding:6px; margin-top:6px; display :none;">
+</div>
+    <button class="CEX" id="ex100">⇑</button> 
+<div class="JOYS" id="joystick-container"> 
+  <div class="JOYS" id="indicator"></div>
+  <div id="EXp2"></div>
+  <div id="EXp"></div>
+  <div id="centerDot"></div>
+  <div id="tick"></div>
+  <div id="ring"></div>
+  <div id="EXchoice">
+    <button id="btnCCW">←</button>
+    <button id="btnCW">→</button>
+  </div>
+  <div class="JOYS" id="joystick"></div> 
+</div>
+<div id="log"></div>
+<script> 
+  const joystick = document.getElementById("joystick"); 
+  const container = document.getElementById("joystick-container"); 
+  const indicator = document.getElementById("indicator"); 
+  const connectButton = document.getElementById("connectButton");
+  const CM = document.getElementsByClassName("CInd");
+  const tick = document.getElementById("tick");
+  const ring = document.getElementById("ring");
+  const EXp = document.getElementById("EXp");
+  const EXp2 = document.getElementById("EXp2");
+  const LOG = document.getElementById("log");
+  const EXchoice = document.getElementById("EXchoice");
+  const btnCCW = document.getElementById("btnCCW");
+  const btnCW  = document.getElementById("btnCW");
+  const input = document.getElementById("fileNameInput");
+  ////
+  for (let i = 0; i < 8; i++) {
+    const line = document.createElement("div");
+    line.className = "tick";
+    line.style.height = "50%";          
+    line.style.left = "50%";
+    line.style.top = "0";
+    line.style.transform = `rotate(${i * 45}deg)`;
+    tick.appendChild(line);
+  }
+  [20, 40, 60, 80, 100].forEach(p => {
+    const r = document.createElement("div");
+    r.className = "ring";
+    r.style.width = `${p}%`;
+    r.style.height = `${p}%`;
+    ring.appendChild(r);
+  });
+  ////
+  let centerX = container.offsetWidth / 2; 
+  let centerY = container.offsetHeight / 2; 
+  let isDragging = false; 
+  let isSending = false;
+  let isEscaped = true;
+  let isConnected = false;
+  let EXingState = 0;
+  let isEXplaced =false;
+  let isBackspaced =false;
+  let ex_Scale = 0;
+
+  /// 
+  let exCount = 0;
+  let exDres16 = [0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5, 180, 202.5, 225, 247.5, 270, 292.5, 315, 337.5];
+  let exPres   = [40, 60, 80, 100];
+  let exSet = [];
+    for (const deg of exDres16) {
+    for (const per of exPres) {
+      exSet.push({ deg, per });
+    }}
+  let exPoints = [];   
+  //// Θ *= 22.5 , Δ.  2AFC
+  let exSign = [-1, +1];
+  let exresD = [5,10,15,20];
+  let exDres = [0,23,45,68,90,113,135,158,180,203,225,248,270,293,315,338];   
+  let exTrials = [];
+    for (const theta of exDres) {
+    for (const delta of exresD) {
+    for (const sign of exSign) {
+      exTrials.push({ theta, delta, sign });
+    }}}
+  let exChoice = null;
+  //
+  let EX_lastX = 0, EX_lastY = 0;
+
+  let M_per = 0;
+  let M_deg = 0;
+  
+  const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+  const WRITE_UUID = "6e400012-b5a3-f393-e0a9-e50e24dcca9e";
+  let TX;
+  let sendData = null;
+
+  window.addEventListener("resize", (e) => { 
+    centerX = container.offsetWidth / 2; 
+    centerY = container.offsetHeight / 2;
+  }); 
+  connectButton.addEventListener("click", async () => {
+    let idx = 0;
+    CM[0].textContent = "conecting...";
+    CM[0].style.background = "";
+    CM[1].textContent = "gettingService...";
+    CM[1].style.background = "";
+    CM[2].style.background = "";
+    try{
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name:'koko' }],
+          optionalServices: [SERVICE_UUID]
+        });
+        CM[idx].style.display = "block";
+        const server = await device.gatt.connect();
+        console.log("server info:", server);
+        CM[idx].textContent = "COMPLETE!"; 
+        CM[idx].style.color = "#00c72b";
+        CM[++idx].style.display = "block";
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        console.log("Available services:", service);
+        CM[idx].textContent = "COMPLETE!"; 
+        CM[idx].style.color = "#00c72b";
+        CM[++idx].style.display = "block";                                                                                   
+            TX = await service.getCharacteristic(WRITE_UUID);
+            console.log("TX:", TX);
+        CM[idx].textContent = "COMPLETE!"; 
+        CM[idx].style.color = "#00c72b";
+        
+        await StartSending();
+        
+        isConnected =true;
+        setTimeout(()=>{
+            connectButton.style.display = "none";
+            CM[0].textContent = "Connected to ESP32."
+            CM[1].style.display = "none";
+            CM[2].style.display = "none";
+            joystick.style.background= "#626262";
+            container.style.pointerEvents= "auto";
+        }, 500);
+
+        device.addEventListener("gattserverdisconnected", ()=>{
+            CM[0].style.color = "#970000";
+            CM[0].textContent = "disconnected...";
+            isConnected =false;
+            setTimeout(()=>{
+                connectButton.style.display = "block";
+                CM[0].style.display = "none";
+                joystick.style.background= "#a6a6a6";
+                container.style.pointerEvents= "none";
+            }, 1000);
+        });
+    }
+    catch(err){
+        CM[idx].textContent = "FAILED."; CM[idx].style.background = "#970000";
+        console.error("Error:",err);
+    }
+  });
+  btnCCW.addEventListener("click", (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    if(EXingState!==3 && EXingState!==5) return;
+    exChoice = -1;
+    isEXplaced = true;
+  });
+  btnCW.addEventListener("click", (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    if(EXingState!==3&& EXingState!==5) return;
+    exChoice = +1;
+    isEXplaced = true;
+  });
+  container.addEventListener("pointerdown", (e) => { 
+    isDragging = true; 
+    if(EXingState==0) moveJoystick(e); 
+  }); 
+  document.addEventListener("pointerdown", (e) => { 
+    isDragging = true; 
+    if(EXingState==2 || EXingState==4){
+      EX100(e);
+      EXp.style.display = "block";
+    }
+  }); 
+  document.addEventListener("pointermove", (e) => { 
+    if (isDragging) {
+      if(EXingState==2 || EXingState==4) EX100(e);
+      else if(EXingState==0) moveJoystick(e); 
+    }
+  }); 
+  
+  document.addEventListener("pointerup", (e) => { 
+  if(EXingState==2 || EXingState==4){
+    EX100(e);
+    isEXplaced =true;
+    if(EXingState==2) EXp.style.display = "none";
+  }
+  else if(EXingState==0){
+    joystick.style.transform = `translate(0, 0)`;
+    sendData = new Uint8Array([0,0,0]);
+  }
+  indicator.style.display = "none";
+  isDragging = false;
+  }); 
+  document.addEventListener("keydown", e => {
+    if(isConnected){
+      if (e.code === "Escape") {
+        isEscaped =true;
+      }
+      else if (e.code == "KeyW"){  
+        if(!isEscaped)  isEscaped=true;
+        else if(EXingState==0) enterEX(1);
+      }
+      else if (e.code == "Space"){  
+        ex_Scale =(ex_Scale+1)%6;
+      }
+      else if (e.code == "KeyE" && e.shiftKey){  
+        if(!isEscaped)  isEscaped=true;
+        else if(EXingState==0) enterEX(2);
+      }
+      else if (e.code == "KeyE"){  
+        if(!isEscaped)  isEscaped=true;
+        else if(EXingState==0) enterEX(4);
+      }
+      else if (e.code == "Backspace"){  
+        if(EXingState==2 || EXingState==4) isBackspaced=true;
+      }
+      else if (e.code == "KeyR" && e.shiftKey){  
+        if(!isEscaped)  isEscaped=true;
+        else if(EXingState==0) enterEX(3);
+      }
+      else if (e.code == "KeyR"){  
+        if(!isEscaped)  isEscaped=true;
+        else if(EXingState==0) enterEX(5);
+      }
+    }
+  }); 
+async function enterEX(s) {
+  isEscaped =false;
+  EXingState =s;
+  ex_Scale =0;
+  joystick.style.background= "#fff200";  
+  document.body.style.pointerEvents= (s==2|| s==3|| s==4|| s==5)?  "auto" : "none";
+  //
+  const rect = container.getBoundingClientRect(); 
+  const maxDistance = rect.width*0.3;
+  let rad=0;
+  
+  //let x,y;
+  switch(s){
+      case 1:
+        indicator.style.display = "block";
+        while(!isEscaped){
+          //await safeSend(new Uint8Array([0x00, (deg>>8)&0xFF, deg&0xFF]));
+          await new Promise(r => setTimeout(r, 25)); 
+          joystick.style.transform = `translate(${Math.sin(rad)*maxDistance*ex_Scale*20/100}px, ${Math.cos(rad)*maxDistance*ex_Scale*20/100}px)`; 
+          rad -=0.05;
+          indicator.innerText = `${(ex_Scale*20).toFixed(0)}% ${((180-rad *(180/Math.PI))%360).toFixed(0)}°`;
+        }
+        indicator.style.display = "none";
+        break;
+      case 2:
+        // stun2
+        joystick.style.display="none";
+        LOG.style.display = "block";
+        tick.style.display="none";
+        /// INTI
+        for (let i = exSet.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [exSet[i], exSet[j]] = [exSet[j], exSet[i]];
+        }
+        exCount = 0;
+        exPoints = [];       
+        isEXplaced = false;
+
+        while(!isEscaped && exCount < exSet.length){
+          let restart =false;
+          const t = exSet[exCount];
+          LOG.innerText = `PLACE ${exCount+1}/${exSet.length}`;
+          isEXplaced = false;
+          isBackspaced = false;
+          //sendData = (new Uint8Array([t.per/100*255,(t.deg>>8)&0xFF,t.deg&0xFF]));
+          await presentPulsed(t.per, t.deg, 150, 50, 2);
+          while(!isEscaped && !isEXplaced){
+            if(isBackspaced && (exCount>=1)){
+              restart = true;
+              break;
+            }
+            await new Promise(r=> setTimeout(r,25));
+          }
+          sendData = (new Uint8Array([0,0,0]));
+          if(restart){
+            exPoints.pop();
+            exCount--;
+            continue;
+          }
+          if(isEscaped) break;
+          exPoints.push({ per: t.per, deg: t.deg, in_per: (M_per/255*100).toFixed(0), in_deg: M_deg });
+          exCount++;
+        }
+        LOG.style.display = "none";
+        input.style.display = "block";
+        ex_Scale=0;
+        while(!isEscaped && !ex_Scale)  await new Promise(r=> setTimeout(r,25));
+        saveExPoints("case2");
+        input.style.display = "none";
+        joystick.style.display = "block";
+        ring.style.display = "none";
+        break;
+      case 3:
+        // stun2
+        joystick.style.display="none";
+        ring.style.display="block";
+        LOG.style.display="block";
+        /// INIT
+        exCount = 0;
+        for (let i = exTrials.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [exTrials[i], exTrials[j]] = [exTrials[j], exTrials[i]];
+        }
+        exPoints = [];      
+
+        while(!isEscaped && exCount < exTrials.length){
+          for(let i=0;i<12;i++){
+            LOG.innerText = `${i/10}`;
+            await new Promise(r=> setTimeout(r,100));
+          }
+          let restart =false;
+          const t = exTrials[exCount];
+          LOG.innerText = `TRIAL ${exCount+1}/${exTrials.length}`;
+          exChoice = null;
+          isEXplaced = false;
+          isBackspaced = false;
+          showChoiceAtTheta(t.theta);
+          await presentThetaDelta(t.theta, t.delta, t.sign);
+          while(!isEscaped && !isEXplaced){
+            if(isBackspaced && (exCount>=1)){
+              restart = true;
+              break;
+            }
+            await new Promise(r=> setTimeout(r,25));
+          }
+          hideChoice();
+          if(restart){
+            exPoints.pop();
+            exCount--;
+            continue;
+          }
+          if(isEscaped) break;
+          exPoints.push({ theta: t.theta,
+                          delta: t.delta,
+                          sign: t.sign,
+                          ans: exChoice });
+          exCount++;
+        }
+        LOG.style.display = "none";
+        input.style.display = "block";
+        ex_Scale=0;
+        while(!isEscaped &&!ex_Scale)  await new Promise(r=> setTimeout(r,25));
+        saveExPoints("case3");
+        input.style.display = "none";
+        joystick.style.display = "block";
+        ring.style.display = "none";
+        break;
+      case 4: // feedback + small dataset (case2)
+        joystick.style.display="none";
+        tick.style.display="none";
+        LOG.style.display = "block";
+
+        for (let i = exSet.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [exSet[i], exSet[j]] = [exSet[j], exSet[i]];
+        }
+        exCount = 0;
+        exPoints = [];
+        isEXplaced = false;
+
+        while(!isEscaped && exCount < 20){
+          let restart = false;
+          const t = exSet[exCount];
+          LOG.innerText = `PLACE(FB) ${exCount+1}/20`;
+          isEXplaced = false;
+          isBackspaced = false;
+            // sendData = (new Uint8Array([t.per/100*255,(t.deg>>8)&0xFF,t.deg&0xFF]));
+          await presentPulsed(t.per, t.deg, 150, 50, 2);
+          while(!isEscaped && !isEXplaced){
+            if(isBackspaced && (exCount>=1)){
+              restart = true;
+              break;
+            }
+            await new Promise(r=> setTimeout(r,25));
+          }
+          if(restart){
+            exPoints.pop();
+            exCount--;
+            continue;
+          }
+          if(isEscaped) break;
+
+          exPoints.push({ per: t.per, deg: t.deg, in_per: M_per, in_deg: M_deg });
+          exCount++;
+
+          placeEXp2(t.per, t.deg);
+          EXp2.style.display = "block";
+          await new Promise(r=> setTimeout(r,300));
+          EXp.style.display = "none";
+          EXp2.style.display = "none";
+        }
+
+        LOG.style.display = "none";
+        joystick.style.display = "block";
+        ring.style.display = "none";
+        break;
+      case 5: // " (case3)
+        joystick.style.display="none";
+        ring.style.display="block";
+        LOG.style.display="block";
+
+        for (let i = exTrials.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [exTrials[i], exTrials[j]] = [exTrials[j], exTrials[i]];
+        }
+
+        exCount = 0;
+        exPoints = [];
+
+        while(!isEscaped && exCount < 24){
+          let restart = false;
+          const t = exTrials[exCount];
+
+          LOG.innerText = `TRIAL(FB) ${exCount+1}/24`;
+          isEXplaced = false;
+          isBackspaced = false;
+
+          showChoiceAtTheta(t.theta);
+          await presentThetaDelta(t.theta, t.delta, t.sign);
+
+          while(!isEscaped && !isEXplaced){
+            if(isBackspaced && (exCount>=1)){
+              restart = true;
+              break;
+            }
+            await new Promise(r=> setTimeout(r,25));
+          }
+
+          if(restart){
+            hideChoice();
+            exPoints.pop();
+            exCount--;
+            continue;
+          }
+          if(isEscaped){
+            hideChoice();
+            break;
+          }
+
+          exPoints.push({
+            theta: t.theta, delta: t.delta, sign: t.sign, ans: exChoice
+          });
+
+          const correct = (exChoice === t.sign); // sign:+1=CW, -1=CCW
+          LOG.innerText = correct ? "CORRECT" : "WRONG";
+          EXchoice.style.background = correct ? "#b7ffb7" : "#ffb7b7";
+          await new Promise(r=> setTimeout(r,500));
+
+          hideChoice();
+          EXchoice.style.background = "#eee";
+
+          exCount++;
+          await new Promise(r=> setTimeout(r,1200)); 
+        }
+
+        LOG.style.display = "none";
+        joystick.style.display = "block";
+        ring.style.display = "none";
+        break;
+  }
+  EXingState=0;
+  tick.style.display="block";
+  joystick.style.transform = `translate(0, 0)`;
+  sendData = new Uint8Array([0,0,0]);
+  //sendZero(); 
+  joystick.style.background= "#626262";
+  document.body.style.pointerEvents= "auto";
+}
+async function presentPulsed(perPercent, deg, onMs=150, offMs=50, pulses=3){
+  const amp = Math.round(perPercent / 100 * 255) & 0xFF;
+  const hi = (Math.round(deg) >> 8) & 0xFF;
+  const lo = Math.round(deg) & 0xFF;
+
+  for(let i=0;i<pulses;i++){
+    sendData = new Uint8Array([amp, hi, lo]);        
+    await new Promise(r=>setTimeout(r,onMs));
+
+    sendData = new Uint8Array([0,0,0]);             
+    await new Promise(r=>setTimeout(r,offMs));
+  }
+}
+async function presentThetaDelta(theta, delta, sign){
+  const dur = 250;   // ms
+  const gap = 100;
+  // Θ
+    sendData = ( new Uint8Array([255,(theta>>8)&0xFF,theta&0xFF]));
+  await new Promise(r=>setTimeout(r,dur));
+
+  sendData = (new Uint8Array([0,0,0]));
+  await new Promise(r=>setTimeout(r,gap));
+  // Θ + Δ
+  const th2 = (theta + sign * delta + 360) % 360;
+    sendData = (new Uint8Array([255,(th2>>8)&0xFF,th2&0xFF]));
+  await new Promise(r=>setTimeout(r,dur));
+  EXchoice.style.background= "#eee";
+    sendData = (new Uint8Array([0,0,0]));
+}
+async function EX100(e){
+  ///
+  if(!e) return;
+
+  const rect = container.getBoundingClientRect(); 
+  let x = e.clientX - rect.left - centerX; 
+  let y = e.clientY - rect.top - centerY; 
+  let angle = Math.atan2(x, y);
+  let distance = Math.sqrt(x * x + y * y); 
+  const maxDistance = rect.width*0.5; 
+  
+  if (distance > maxDistance) { 
+    x = Math.sin(angle) * maxDistance; 
+    y = Math.cos(angle) * maxDistance; 
+    distance = maxDistance;
+  } 
+  M_per = (distance / maxDistance * 255).toFixed(0);
+  M_deg = (180 - angle * (180/Math.PI)).toFixed(0);
+
+  if(EXingState==2 || EXingState==4){
+    EXp.style.transform = `translate(${x}px, ${y}px)`;
+    EX_lastX = x;
+    EX_lastY = y;
+
+    indicator.innerText = `${(M_per/255*100).toFixed(0)}% ${M_deg}°`;
+    indicator.style.display = "block";
+    indicator.style.transform = `translatex(${x}px)`;
+    return;
+  }
+  ///
+}
+function placeEXp2(per, deg){
+  const rect = container.getBoundingClientRect();
+  const maxDistance = rect.width * 0.5;  
+  const dist = per/100 * maxDistance;
+
+  const rad = (180 - deg) * Math.PI / 180;
+  const x = Math.sin(rad) * dist;
+  const y = Math.cos(rad) * dist;
+
+  EXp2.style.transform = `translate(${x}px, ${y}px)`;
+}
+function showChoiceAtTheta(thetaDeg){
+  const rect = container.getBoundingClientRect();
+  const R = rect.width * 0.3; 
+  const rad = (180 - thetaDeg) * Math.PI / 180;
+  const x = Math.sin(rad) * R;
+  const y = Math.cos(rad) * R;
+
+  EXchoice.style.display = "block";
+  EXchoice.style.background= "#a1a1a1";
+  EXchoice.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${thetaDeg}deg)`;
+}
+function hideChoice(){
+  EXchoice.style.display = "none";
+}
+function logMessage(message) {
+    const logArea = document.getElementById("log");
+    logArea.innerText = `${message}`;
+}
+
+  function moveJoystick(e) { 
+    const rect = container.getBoundingClientRect(); 
+    let x = e.clientX - rect.left - centerX; 
+    let y = e.clientY - rect.top - centerY; 
+    let angle = Math.atan2(x, y);
+    let distance = Math.sqrt(x * x + y * y); 
+    const maxDistance = rect.width*0.3; 
+    
+    if (distance > maxDistance) { 
+      x = Math.sin(angle) * maxDistance; 
+      y = Math.cos(angle) * maxDistance; 
+      distance = maxDistance
+    } 
+    
+    M_per = (distance/maxDistance*255).toFixed(0);
+    M_deg = (180 -angle *(180/Math.PI)).toFixed(0);
+
+    indicator.innerText = `${(M_per/255*100).toFixed(0)}% ${M_deg}°`;
+    indicator.style.display = "block";
+    indicator.style.transform = `translatex(${x}px)`; 
+    joystick.style.transform = `translate(${x}px, ${y}px)`; 
+
+    // for message
+    //M_deg = (M_deg/3).toFixed(0);
+    CM[1].style.color = "#1d1e23";
+    sendData = new Uint8Array([M_per&0xFF, (M_deg>>8)&0xFF, M_deg&0xFF]);
+  } 
+  async function StartSending(){
+    if(!TX){
+        setTimeout(sendLoop,30);
+        return;
+    }
+    if(!isSending && sendData!=null){
+      const d = sendData;
+      sendData = null;
+      isSending =true;
+        CM[1].textContent = `${d}`;
+        CM[1].style.display = "block";
+        setTimeout(()=>{
+            CM[1].style.display = "none";
+        }, 250);
+        try{
+            await TX.writeValueWithoutResponse(d);
+        } catch(err){
+            logMessage(err);
+        }
+      isSending =false;
+    }
+    setTimeout(StartSending,30); 
+  }
+  function downloadText(filename, text){
+    const blob = new Blob([text], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function safeFilePart(s){
+  return (s || "")
+    .trim()
+    .replace(/[\\\/:\*\?"<>\|]/g, "_")
+    .replace(/\s+/g, "_")
+    .slice(0, 80);
+}
+function saveExPoints(tag){
+  const ts = new Date().toISOString().replaceAll(":", "").replaceAll("-", "");
+  const base = safeFilePart(input ? input.value : "");
+  const fname = base
+    ? `${base}_${tag}_${ts}.json`
+    : `${tag}_${ts}.json`;
+  downloadText(fname, JSON.stringify(exPoints, null, 2));
+}
+  async function sendZero(){
+    let success = false;
+    let retry = 0;
+    while((!success) && (retry < 5)){
+      try{
+        await safeSend(new Uint8Array([0x00, 0x00, 0x00]));
+        success = true;
+      } catch(err){
+        if(err.message.includes("GATT") || err.toString().includes("GATT")) {
+          retry++;
+          await new Promise(r => setTimeout(r, 30)); 
+        }
+        else{
+          console.error("Error:",err);
+          break;
+        }
+      }
+    }
+  }
+  async function safeSend(data){
+    if(isSending) return;
+    isSending =true;
+    try{
+      
+    } catch(err){
+        console.error("Error:",err);
+    } finally {
+
+    }
+  }
+</script>
+</html>
