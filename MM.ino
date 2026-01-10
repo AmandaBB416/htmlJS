@@ -2,6 +2,8 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <Arduino.h>
+#include "driver/gpio.h"
+#include "esp_sleep.h"
 //#include <math.h>
 
 #define min(i, j) (((i) < (j)) ? (i) : (j))
@@ -20,9 +22,12 @@ float tmp;
 uint8_t M_out[8]={0}; 
 
 //
-#define ledPin 3 
-const uint8_t M_M[8] ={D1,D10,D7,D0,D2,D5,D3,D4}; 
+
+const uint8_t M_M[8] ={D1,D3,D10,D7,D4,D2,D0,D5}; 
 //
+
+static uint32_t lastDisconnectedMs = 0;
+const uint32_t SLEEP_AFTER_DISCONNECT_MS = 30000;
 
 #define SERVICE_UUID        "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 #define CHARACTERISTIC_UUID "6e400012-b5a3-f393-e0a9-e50e24dcca9e"
@@ -30,6 +35,8 @@ const uint8_t M_M[8] ={D1,D10,D7,D0,D2,D5,D3,D4};
 class MyServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *pServer) {
     deviceConnected = true;
+    lastDisconnectedMs = 0;       
+    digitalWrite(LED_BUILTIN, HIGH);
   };
 
   void onDisconnect(BLEServer *pServer) {
@@ -51,6 +58,9 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
 };
 void setup() {
   //Serial.begin(9600);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
+
   for(uint8_t i=0;i<8;i++){
     ledcAttachPin(M_M[i],i);
     //          235
@@ -85,7 +95,36 @@ void setup() {
 }
 
 void loop() {
-  if (!deviceConnected) return;
+  if (!deviceConnected) {
+    if (lastDisconnectedMs == 0) {
+      lastDisconnectedMs = millis();
+    }
+    if ((millis() / 500) % 2 == 0) {
+      digitalWrite(LED_BUILTIN, LOW);
+    } else {
+      digitalWrite(LED_BUILTIN, HIGH);
+    }
+    if (millis() - lastDisconnectedMs > SLEEP_AFTER_DISCONNECT_MS) {
+      digitalWrite(LED_BUILTIN, HIGH); 
+      for (uint8_t i = 0; i < 8; i++) {
+        ledcWrite(i, 0);
+      }
+      BLEDevice::deinit(true);
+        gpio_hold_en((gpio_num_t)1);   
+        gpio_hold_en((gpio_num_t)2);
+        gpio_hold_en((gpio_num_t)3);
+        gpio_hold_en((gpio_num_t)4);
+        gpio_hold_en((gpio_num_t)5);
+        gpio_hold_en((gpio_num_t)6);
+        gpio_hold_en((gpio_num_t)44);  
+        gpio_hold_en((gpio_num_t)9);
+      gpio_deep_sleep_hold_en();
+      esp_deep_sleep_start();
+    }
+
+    delay(50);
+    return;
+  }
     //angle /=45;
   for(uint8_t i=0;i<8;i++){
       tmp =abs(i-(angle/45.0));
